@@ -208,7 +208,8 @@ defmodule Lightning.Credentials do
   defp do_create_credential(attrs) do
     credential_bodies = get_credential_bodies(attrs)
 
-    with :ok <- validate_credential_bodies(credential_bodies, attrs),
+    with :ok <- validate_legacy_body_shape(attrs),
+         :ok <- validate_credential_bodies(credential_bodies, attrs),
          changeset <- Credential.create_changeset(%Credential{}, attrs),
          :ok <- validate_external_id(changeset) do
       build_create_multi(changeset, credential_bodies)
@@ -364,6 +365,22 @@ defmodule Lightning.Credentials do
         |> CredentialBody.changeset(%{body: body_data})
         |> cast_credential_body_change(schema_name)
         |> Repo.update()
+    end
+  end
+
+  defp validate_legacy_body_shape(attrs) do
+    if Map.has_key?(attrs, "body") and
+         not Map.has_key?(attrs, "credential_bodies") do
+      changeset =
+        Credential.create_changeset(%Credential{}, attrs)
+        |> Ecto.Changeset.add_error(
+          :credential_bodies,
+          "must be provided instead of the legacy body field"
+        )
+
+      {:error, changeset}
+    else
+      :ok
     end
   end
 
