@@ -103,11 +103,16 @@ defmodule Lightning.SetupUtils do
     {:ok, credential} =
       Credentials.create_credential(
         %{
-          body: %{
-            username: "admin",
-            password: "district",
-            hostUrl: "https://play.dhis2.org/dev"
-          },
+          credential_bodies: [
+            %{
+              name: "main",
+              body: %{
+                username: "admin",
+                password: "district",
+                hostUrl: "https://play.dhis2.org/dev"
+              }
+            }
+          ],
           name: "DHIS2 play",
           user_id: user_id,
           schema: "@openfn/language-dhis2"
@@ -977,6 +982,19 @@ defmodule Lightning.SetupUtils do
     :ok
 
   """
+  defp normalize_setup_credential(credential) do
+    if Map.has_key?(credential, :body) and
+         not Map.has_key?(credential, :credential_bodies) do
+      {body, credential} = Map.pop!(credential, :body)
+
+      Map.put(credential, :credential_bodies, [
+        %{name: "main", body: body}
+      ])
+    else
+      credential
+    end
+  end
+
   @spec setup_user(map(), String.t() | nil, list(map()) | nil) ::
           :ok | {:error, any()}
   def setup_user(user, token \\ nil, credentials \\ nil) do
@@ -1002,9 +1020,14 @@ defmodule Lightning.SetupUtils do
       if credentials,
         do:
           Enum.each(credentials, fn credential ->
+            credential =
+              credential
+              |> normalize_setup_credential()
+              |> Map.put(:user_id, user.id)
+
             {:ok, _credential} =
               Credentials.create_credential(
-                credential |> Map.put(:user_id, user.id),
+                credential,
                 user
               )
           end)
